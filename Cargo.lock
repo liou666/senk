@@ -707,6 +707,7 @@ dependencies = [
  "device_query",
  "enigo",
  "mouse_position",
+ "once_cell",
  "rdev",
 ]
 

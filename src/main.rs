@@ -7,6 +7,7 @@ use utils::copy;
 mod utils;
 
 pub static PREVIOUS_PRESS_TIME: Mutex<u128> = Mutex::new(0);
+pub static PREVIOUS_PRESS_POSITION: Mutex<(i32, i32)> = Mutex::new((0, 0));
 pub static PREVIOUS_RELEASE_POSITION: Mutex<(i32, i32)> = Mutex::new((0, 0));
 
 struct POINT {
@@ -28,26 +29,15 @@ fn callback(event: Event) {
         EventType::ButtonPress(button) => {
             if button == rdev::Button::Left {
                 println!("Left button pressed");
-                let current_press_time = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis();
                 let position = Mouse::get_mouse_position();
                 match position {
                     Mouse::Position { x, y } => {
                         println!("x: {}, y: {}", x, y);
-                        if let Ok(mut previous_release_position) = PREVIOUS_RELEASE_POSITION.lock()
-                        {
+                        if let Ok(mut previous_release_position) = PREVIOUS_PRESS_POSITION.lock() {
                             *previous_release_position = (x, y);
                         } else {
                             eprintln!("Unable to lock Mutex");
                         }
-
-                        // if let Ok(mut previous_press_time) = PREVIOUS_PRESS_TIME.lock() {
-                        //     *previous_press_time = current_press_time;
-                        // } else {
-                        //     eprintln!("Unable to lock Mutex");
-                        // }
                     }
                     Mouse::Error => println!("Error getting mouse position"),
                 }
@@ -56,8 +46,6 @@ fn callback(event: Event) {
         EventType::ButtonRelease(button) => {
             if button == rdev::Button::Left {
                 println!("Left button released");
-
-                let mut end_point = POINT { x: 0, y: 0 };
 
                 let current_release_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -68,23 +56,32 @@ fn callback(event: Event) {
                 match position {
                     Mouse::Position { x, y } => {
                         println!("x: {}, y: {}", x, y);
-                        if let Ok(previous_release_position) = PREVIOUS_RELEASE_POSITION.lock() {
+                        let mut previous_release_position =
+                            PREVIOUS_RELEASE_POSITION.lock().unwrap();
+                        if let Ok(previous_press_position) = PREVIOUS_PRESS_POSITION.lock() {
+                            let (prev_press_x, prev_press_y) = *previous_press_position;
+
                             let (prev_release_x, prev_release_y) = *previous_release_position;
 
-                            let mouse_distance = (((x - prev_release_x).pow(2)
+                            let mouse_distance =
+                                (((x - prev_press_x).pow(2) + (y - prev_press_y).pow(2)) as f64)
+                                    .sqrt();
+
+                            let double_click_distance = (((x - prev_release_x).pow(2)
                                 + (y - prev_release_y).pow(2))
                                 as f64)
                                 .sqrt();
 
                             let is_double_click =
-                                current_release_time - *PREVIOUS_PRESS_TIME.lock().unwrap() < 500;
+                                current_release_time - *PREVIOUS_PRESS_TIME.lock().unwrap() < 500
+                                    && double_click_distance < 5.0;
 
                             println!(
                                 "Mouse move distance: {} - is_double_click: {}",
                                 mouse_distance, is_double_click
                             );
 
-                            let is_text_select = mouse_distance > 15.0 || is_double_click;
+                            let is_text_select = mouse_distance > 10.0 || is_double_click;
                             if is_text_select {
                                 println!("Possible text selection event");
                                 std::thread::spawn(move || {
@@ -93,32 +90,13 @@ fn callback(event: Event) {
                                 });
                             }
                             *PREVIOUS_PRESS_TIME.lock().unwrap() = current_release_time;
+                            *previous_release_position = (x, y);
                         } else {
                             eprintln!("Unable to lock Mutex");
                         }
                     }
                     Mouse::Error => println!("Error getting mouse position"),
                 }
-
-                // println!("position: {:#?}", position);
-                // let (x, y): (i32, i32) = get_mouse_location().unwrap();
-                // let (prev_release_x, prev_release_y) = { *PREVIOUS_RELEASE_POSITION.lock() };
-                // {
-                //     *PREVIOUS_RELEASE_POSITION.lock() = (x, y);
-                // }
-
-                // if let Ok(previous_press_time) = PREVIOUS_PRESS_TIME.lock() {
-                //     let press_duration = current_release_time - *previous_press_time;
-                //     // You can add duration judgment logic here
-                //     println!("Press duration: {}ms", press_duration);
-
-                //     // Logic to determine if it is a text selection event
-                //     if press_duration > 50 && press_duration < 1000 {
-                //         println!("Possible text selection event");
-                //     }
-                // } else {
-                //     eprintln!("Unable to read Mutex");
-                // }
             }
         }
         EventType::MouseMove { x, y } => {
