@@ -2,6 +2,9 @@ use arboard::Clipboard;
 use mouse_position::mouse_position::Mouse;
 use rdev::{listen, Event, EventType};
 use std::{error::Error, sync::Mutex, time::Duration};
+use utils::copy;
+
+mod utils;
 
 pub static PREVIOUS_PRESS_TIME: Mutex<u128> = Mutex::new(0);
 pub static PREVIOUS_RELEASE_POSITION: Mutex<(i32, i32)> = Mutex::new((0, 0));
@@ -127,9 +130,46 @@ fn callback(event: Event) {
 }
 
 fn get_text_by_clipboard() -> Result<String, Box<dyn Error>> {
-    let old_clipboard = Clipboard::new()?.get_text();
-    match old_clipboard {
-        Ok(text) => Ok(text),
-        Err(error) => Err(Box::new(error)),
+    // Read Old Clipboard
+    let old_clipboard = (Clipboard::new()?.get_text(), Clipboard::new()?.get_image());
+
+    if copy() {
+        // Read New Clipboard
+        let new_text = Clipboard::new()?.get_text();
+
+        // Create Write Clipboard
+        let mut write_clipboard = Clipboard::new()?;
+
+        match old_clipboard {
+            (Ok(text), _) => {
+                // Old Clipboard is Text
+                write_clipboard.set_text(text)?;
+                if let Ok(new) = new_text {
+                    Ok(new)
+                } else {
+                    Err("New clipboard is not Text".into())
+                }
+            }
+            (_, Ok(image)) => {
+                // Old Clipboard is Image
+                write_clipboard.set_image(image)?;
+                if let Ok(new) = new_text {
+                    Ok(new)
+                } else {
+                    Err("New clipboard is not Text".into())
+                }
+            }
+            _ => {
+                // Old Clipboard is Empty
+                write_clipboard.clear()?;
+                if let Ok(new) = new_text {
+                    Ok(new)
+                } else {
+                    Err("New clipboard is not Text".into())
+                }
+            }
+        }
+    } else {
+        Err("Copy Failed".into())
     }
 }
