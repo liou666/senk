@@ -1,11 +1,6 @@
 use device_query::DeviceQuery;
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
-// pub fn copy() -> bool {
-//     let mut enigo = Enigo::new(&Settings::default()).unwrap();
-//     enigo.key(Key::Control, Direction::Press).unwrap();
-//     enigo.key(Key::C, Direction::Click).unwrap();
-//     true
-// }
+
 pub fn copy() -> bool {
     use device_query::Keycode;
     use enigo::{
@@ -45,8 +40,9 @@ pub fn copy() -> bool {
     #[cfg(not(target_os = "macos"))]
     {
         enigo.key(Key::RControl, Press).unwrap();
-        enigo.key(Key::C, Click).unwrap();
+        enigo.key(Key::Insert, Click).unwrap();
         enigo.key(Key::RControl, Release).unwrap();
+        enigo.key(Key::Insert, Release).unwrap();
     }
 
     // Wait for clipboard to update
